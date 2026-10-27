@@ -10,6 +10,9 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Minha Rota">
+<script>
+  try{ const t=localStorage.getItem("minharota.tema"); if(t==="light"||t==="dark") document.documentElement.dataset.theme=t; }catch(e){}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">
 <style>
@@ -22,11 +25,23 @@
   --font-body:"Barlow",system-ui,sans-serif; --font-label:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   color-scheme:light;
 }
-@media (prefers-color-scheme: dark){:root{
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#12161A; --card:#1B2127; --ink:#ECEFF1; --muted:#9BA6B0; --line:#2D353D;
   --route:#5C9BEA; --route-ink:#0B1520; --route-soft:#1B2C42;
   --ok:#6BCB93; --ok-soft:#163324; --warn:#F2C35B; --warn-soft:#3A2E12; --none:#A2A9AF; --none-soft:#262C31;
   --danger:#F2867E; --fail-soft:#3A1C1A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161A; --card:#1B2127; --ink:#ECEFF1; --muted:#9BA6B0; --line:#2D353D;
+  --route:#5C9BEA; --route-ink:#0B1520; --route-soft:#1B2C42;
+  --ok:#6BCB93; --ok-soft:#163324; --warn:#F2C35B; --warn-soft:#3A2E12; --none:#A2A9AF; --none-soft:#262C31;
+  --danger:#F2867E; --fail-soft:#3A1C1A; color-scheme:dark}
+body{transition:background-color .25s ease,color .25s ease}
+@media (prefers-reduced-motion: reduce){body{transition:none}}
+.head-row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.tema{display:inline-flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px;flex:none}
+.tema button{font:600 12px var(--font-label);letter-spacing:.03em;text-transform:uppercase;border:0;background:transparent;color:var(--muted);padding:6px 10px;border-radius:999px;cursor:pointer}
+.tema button[aria-pressed="true"]{background:var(--route);color:var(--route-ink)}
+.tema button:focus-visible{outline:3px solid var(--route);outline-offset:2px}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.45;
@@ -102,7 +117,14 @@ textarea{min-height:160px;resize:vertical}
 <body>
 <div class="wrap">
   <header>
-    <h1>Minha Rota</h1>
+    <div class="head-row">
+      <h1>Minha Rota</h1>
+      <div class="tema" role="group" aria-label="Tema">
+        <button data-tema="auto" aria-pressed="false">Auto</button>
+        <button data-tema="light" aria-pressed="false">Claro</button>
+        <button data-tema="dark" aria-pressed="false">Escuro</button>
+      </div>
+    </div>
     <p class="sub">Itapevi · o local exato de cada porta</p>
     <button id="nuvem-chip" class="chip" data-go="end" style="border:0;cursor:pointer;margin-top:6px"></button>
     <button id="instalar" class="btn primary" style="margin-top:10px" hidden>Instalar app no celular</button>
@@ -706,6 +728,20 @@ setNuvem(nuvemStatus.texto, nuvemStatus.tipo);
 window.addEventListener("online", ()=>sincronizar());
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") sincronizar(); });
 sincronizar();
+
+function aplicarTema(t){
+  if(t==="light"||t==="dark") document.documentElement.dataset.theme=t; else delete document.documentElement.dataset.theme;
+  document.querySelectorAll("[data-tema]").forEach(b=>b.setAttribute("aria-pressed", String(b.dataset.tema===(t||"auto"))));
+  const escuro = t==="dark" || (t!=="light" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", escuro ? "#12161A" : "#1F5AA6");
+}
+let tema = (()=>{ try{ return localStorage.getItem("minharota.tema")||"auto"; }catch(e){ return "auto"; } })();
+aplicarTema(tema);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", ()=>aplicarTema(tema));
+document.querySelectorAll("[data-tema]").forEach(b=>b.addEventListener("click", ()=>{
+  tema=b.dataset.tema; try{ localStorage.setItem("minharota.tema", tema); }catch(e){}
+  aplicarTema(tema);
+}));
 
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 let pedidoInstalar=null;
