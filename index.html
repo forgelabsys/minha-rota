@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1F5AA6">
 <title>Minha Rota Itapevi</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Minha Rota">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">
 <style>
@@ -100,6 +105,7 @@ textarea{min-height:160px;resize:vertical}
     <h1>Minha Rota</h1>
     <p class="sub">Itapevi · o local exato de cada porta</p>
     <button id="nuvem-chip" class="chip" data-go="end" style="border:0;cursor:pointer;margin-top:6px"></button>
+    <button id="instalar" class="btn primary" style="margin-top:10px" hidden>Instalar app no celular</button>
   </header>
   <nav class="tabs" role="tablist">
     <button id="t-hoje" role="tab" aria-selected="true" data-tab="hoje">Hoje</button>
@@ -671,6 +677,17 @@ setNuvem(nuvemStatus.texto, nuvemStatus.tipo);
 window.addEventListener("online", ()=>sincronizar());
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") sincronizar(); });
 sincronizar();
+
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+let pedidoInstalar=null;
+window.addEventListener("beforeinstallprompt", ev=>{ ev.preventDefault(); pedidoInstalar=ev; document.getElementById("instalar").hidden=false; });
+window.addEventListener("appinstalled", ()=>{ pedidoInstalar=null; document.getElementById("instalar").hidden=true; toast("App instalado. Procure o ícone Minha Rota."); });
+document.getElementById("instalar").addEventListener("click", async ()=>{
+  if(!pedidoInstalar) return;
+  pedidoInstalar.prompt();
+  await pedidoInstalar.userChoice.catch(()=>{});
+  pedidoInstalar=null; document.getElementById("instalar").hidden=true;
+});
 </script>
 </body>
 </html>
