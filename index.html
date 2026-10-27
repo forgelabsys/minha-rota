@@ -598,15 +598,18 @@ function baixar(nome, conteudo, tipo){
 
 function gerarCSV(){
   const q=s=>`"${String(s??"").replace(/"/g,'""')}"`;
-  const linhas=[["Address","Notes"].join(",")];
+  // Colunas do Spoke (antigo Circuit). Cada parada leva OU o endereço OU latitude/longitude, nunca os dois.
+  const cab=["Address Line 1","Address Line 2","City","State","Zip","Latitude","Longitude","Recipient Name","ID","Notes"];
+  const linhas=[cab.join(",")];
   previa.forEach(p=>{
     const e=estado.enderecos[chave(p.rua,p.numero)]||{};
     const texto = `${e.rua||p.rua}, ${e.numero||p.numero||"s/n"}`;
     const ponto = usarCoord && e.fonte==="voce" && e.lat!=null;
-    const endereco = ponto
-      ? `${e.lat.toFixed(6)}, ${e.lng.toFixed(6)}`
-      : [texto, p.bairro, "Itapevi - SP", p.corrigido?"":p.cep].filter(Boolean).join(" - ");
-    linhas.push([q(endereco), q([ponto?texto:"", p.pacote, p.nome, p.ref].filter(Boolean).join(" | "))].join(","));
+    const notas = [ponto?`${texto} - ${e.bairro||p.bairro||""}`.replace(/ - $/,""):"", p.ref].filter(Boolean).join(" | ");
+    const col = ponto
+      ? ["", "", "", "", "", e.lat.toFixed(6), e.lng.toFixed(6)]
+      : [texto, p.bairro||"", "Itapevi", "SP", p.corrigido?"":p.cep, "", ""];
+    linhas.push([...col, p.nome, p.pacote, notas].map(q).join(","));
   });
   return "﻿"+linhas.join("\r\n");
 }
