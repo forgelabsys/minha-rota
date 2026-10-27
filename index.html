@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1F5AA6">
+<title>Minha Rota Itapevi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">
+<style>
+/* Layout: uma coluna de cartões, abas no topo, botões grandes para usar na rua com sol na tela */
+:root{
+  --bg:#F3F4F1; --card:#FFFFFF; --ink:#1C2126; --muted:#5B6570; --line:#D9DDD8;
+  --route:#1F5AA6; --route-ink:#FFFFFF; --route-soft:#E3ECF8;
+  --ok:#1E7A46; --ok-soft:#DFF1E6; --warn:#8A5A00; --warn-soft:#FBEFD2; --none:#6B7177; --none-soft:#ECEDEC;
+  --danger:#B3261E; --fail-soft:#FBE3E1;
+  --font-body:"Barlow",system-ui,sans-serif; --font-label:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#12161A; --card:#1B2127; --ink:#ECEFF1; --muted:#9BA6B0; --line:#2D353D;
+  --route:#5C9BEA; --route-ink:#0B1520; --route-soft:#1B2C42;
+  --ok:#6BCB93; --ok-soft:#163324; --warn:#F2C35B; --warn-soft:#3A2E12; --none:#A2A9AF; --none-soft:#262C31;
+  --danger:#F2867E; --fail-soft:#3A1C1A; color-scheme:dark}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:calc(12px + env(safe-area-inset-top,0px));padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+[hidden]{display:none!important}
+.wrap{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1{font-family:var(--font-label);font-weight:600;font-size:26px;margin:0;letter-spacing:.01em}
+.sub{color:var(--muted);font-size:14px;margin:0}
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px}
+.tabs button{font:600 14px var(--font-label);letter-spacing:.02em;text-transform:uppercase;border:0;background:transparent;color:var(--muted);padding:10px 2px;border-radius:9px;cursor:pointer;min-width:0}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.tile b{display:block;font:600 30px var(--font-label);font-variant-numeric:tabular-nums;line-height:1.1}
+.tile span{color:var(--muted);font-size:13px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{font:600 14px var(--font-label);text-transform:uppercase;letter-spacing:.02em;border:0;background:transparent;color:var(--muted);padding:8px 2px;border-radius:8px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--route-soft);color:var(--route)}
+.bar-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:baseline}
+.bar-row .nome{font-weight:600;overflow-wrap:anywhere}
+.bar-row .qtd{font:600 18px var(--font-label);font-variant-numeric:tabular-nums}
+.bar{grid-column:1/-1;height:10px;background:var(--none-soft);border-radius:5px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--route);border-radius:5px}
+.dia{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:15px}
+.dia .q{font-weight:600;font-variant-numeric:tabular-nums}
+.c-fail{background:var(--fail-soft);color:var(--danger)}
+.deliver{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.deliver .ghost{grid-column:1/-1}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:var(--card)}
+.btn.fail{border-color:var(--danger);color:var(--danger)}
+.stop.done{background:var(--bg)}
+.stop.is-ok .num{background:var(--ok)}
+.stop.is-fail .num{background:var(--danger)}
+.stop.done .actions{display:none}
+.progress{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.progress-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.progress-top strong{font:600 22px var(--font-label)}
+.pbar{display:flex;height:12px;background:var(--none-soft);border-radius:6px;overflow:hidden}
+.pbar .p-ok{background:var(--ok)} .pbar .p-fail{background:var(--danger)}
+.tabs button[aria-selected="true"]{background:var(--route);color:var(--route-ink)}
+.stats{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 13px var(--font-label);letter-spacing:.03em;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.c-ok{background:var(--ok-soft);color:var(--ok)} .c-warn{background:var(--warn-soft);color:var(--warn)} .c-none{background:var(--none-soft);color:var(--none)} .c-route{background:var(--route-soft);color:var(--route)}
+.list{display:flex;flex-direction:column;gap:10px}
+.stop{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;display:grid;grid-template-columns:40px minmax(0,1fr);gap:10px}
+.num{width:36px;height:36px;border-radius:50%;background:var(--route);color:var(--route-ink);font:600 15px var(--font-label);display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+.num.plain{background:var(--none-soft);color:var(--none)}
+.addr{font-weight:600;font-size:17px;margin:0;overflow-wrap:anywhere}
+.meta{color:var(--muted);font-size:14px;margin:2px 0 0;overflow-wrap:anywhere}
+.ref{font-size:14px;margin:4px 0 0;overflow-wrap:anywhere}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:4px;grid-column:1/-1}
+.btn{font:600 15px var(--font-label);letter-spacing:.03em;text-transform:uppercase;text-align:center;text-decoration:none;
+  border:1px solid var(--line);background:var(--card);color:var(--ink);padding:12px 8px;border-radius:10px;cursor:pointer;display:block;width:100%}
+.btn.primary{background:var(--route);border-color:var(--route);color:var(--route-ink)}
+.btn.here{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:focus-visible,.tabs button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--route);outline-offset:2px}
+.panel{grid-column:1/-1;background:var(--route-soft);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.gps{font:600 22px var(--font-label);font-variant-numeric:tabular-nums;margin:0}
+input[type=search],input[type=url],input[type=password],textarea{width:100%;font:16px var(--font-body);color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+textarea{min-height:160px;resize:vertical}
+.msg{font-size:14px;margin:0} .msg.err{color:var(--danger)} .msg.good{color:var(--ok)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.empty{text-align:center;color:var(--muted);padding:28px 12px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}
+.toolbar>*{flex:1 1 140px}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:14px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:15px;z-index:20;max-width:calc(100% - 32px)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Minha Rota</h1>
+    <p class="sub">Itapevi · o local exato de cada porta</p>
+    <button id="nuvem-chip" class="chip" data-go="end" style="border:0;cursor:pointer;margin-top:6px"></button>
+  </header>
+  <nav class="tabs" role="tablist">
+    <button id="t-hoje" role="tab" aria-selected="true" data-tab="hoje">Hoje</button>
+    <button id="t-end" role="tab" aria-selected="false" data-tab="end">Endereços</button>
+    <button id="t-imp" role="tab" aria-selected="false" data-tab="imp">Importar</button>
+    <button id="t-hist" role="tab" aria-selected="false" data-tab="hist">Histórico</button>
+  </nav>
+  <main id="view"></main>
+</div>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script>
+const STORE_KEY = "minharota.v1";
+const PRECISAO_BOA = 25;
+const MENSAGEM = "Olá! Sou o entregador do seu pedido. Não consegui achar seu endereço. Pode me mandar a localização ou um ponto de referência? Obrigado!";
+
+const SMALL = new Set(["da","de","do","dos","das","e"]);
+const COMPL = new Set(["casa","apto","ap","apt","apartamento","bloco","bl","lote","lt","quadra","qd","km","fundos"]);
+const PREFIX = ["chacaras","jardim","jd","parque","vila","estancia","conjunto","residencial","recanto","cidade","bairro","nucleo"];
+const BAIRROS = ["Chácaras Monte Serrat","Parque Mira Flores","Estância São Francisco","Jardim Alabama","Chácaras Goiapa","Amador Bueno","São João"];
+const CORRECOES = [
+  {de:/^avenida cruz grande$/i, rua:"Estrada da Cruz Grande"},
+  {de:/^estrada (da )?jos[eé] augusto f\.? carmaneiro$/i, rua:"Estrada José Augusto Francisco Carmaneiro", bairro:"Estância São Francisco"},
+];
+
+const EXEMPLO = {enderecos:{}, hoje:null};
+
+const semAcento = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g,"");
+const slug = s => semAcento(s).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+const chave = (rua,num) => slug(rua) + "_" + slug(num || "sn");
+const titulo = s => s.split(" ").map((w,i)=>{const l=w.toLowerCase(); if(i>0&&SMALL.has(l)) return l; return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();}).join(" ");
+const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const hojeISO = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+
+function carregar(){
+  let dados=null;
+  try{ const raw=localStorage.getItem(STORE_KEY); if(raw) dados=JSON.parse(raw); }catch(e){}
+  if(!dados) dados=JSON.parse(JSON.stringify(EXEMPLO));
+  if(!dados.historico){
+    dados.historico={};
+    if(dados.hoje?.paradas?.length) registrarDia(dados, dados.hoje.data, dados.hoje.paradas.map(p=>({id:idParada(p), bairro:dados.enderecos[p.key]?.bairro})));
+  }
+  normalizarHistorico(dados);
+  if(!dados.fila) dados.fila={enderecos:{},historico:{}};
+  return dados;
+}
+const agora = () => new Date().toISOString();
+function sujar(tipo, id){ estado.fila[tipo][id]=true; }
+function normalizarHistorico(dados){
+  Object.values(dados.historico).forEach(h=>Object.keys(h).forEach(id=>{ if(typeof h[id]==="string") h[id]={b:h[id], s:"pendente"}; }));
+}
+function registrarDia(dados, dia, itens){
+  const h = dados.historico[dia] || (dados.historico[dia]={});
+  itens.forEach(i=>{
+    const b=i.bairro||"Sem bairro", atual=h[i.id];
+    if(atual && typeof atual==="object"){ if(atual.b===b) return; atual.b=b; }
+    else h[i.id]={b, s:"pendente", atualizado:""};
+    if(dados.fila) dados.fila.historico[dia+"|"+i.id]=true;
+  });
+}
+const idParada = p => p.pacote || p.key;
+const statusDe = p => estado.historico?.[estado.hoje?.data]?.[idParada(p)]?.s || "pendente";
+function marcar(i, s){
+  const p=estado.hoje.paradas[i], dia=estado.hoje.data;
+  registrarDia(estado, dia, [{id:idParada(p), bairro:estado.enderecos[p.key]?.bairro}]);
+  const reg = estado.historico[dia][idParada(p)];
+  reg.s = s; reg.em = s==="pendente" ? null : agora(); reg.atualizado = agora();
+  sujar("historico", dia+"|"+idParada(p));
+  gravar();
+  if(s==="entregue") toast("Entrega confirmada.");
+  else if(s==="falhou") toast("Marcado como não entregue.");
+  render();
+}
+function gravar(){
+  agendarSync();
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(estado)); return true; }
+  catch(e){ toast("Não deu para salvar neste celular. Faça um backup agora."); return false; }
+}
+
+const NUVEM_KEY = "minharota.nuvem";
+let nuvem = (()=>{ try{ return JSON.parse(localStorage.getItem(NUVEM_KEY))||null; }catch(e){ return null; } })();
+let nuvemStatus = {texto: nuvem ? "Ligando…" : "Desligada", tipo: nuvem ? "" : "off", rodando:false};
+
+function pendentesNuvem(){ return Object.keys(estado.fila.enderecos).length + Object.keys(estado.fila.historico).length; }
+
+function agendarSync(){ if(!nuvem) return; clearTimeout(agendarSync.t); agendarSync.t=setTimeout(sincronizar, 1500); }
+
+async function sincronizar(){
+  if(!nuvem || nuvemStatus.rodando) return;
+  if(!navigator.onLine){ setNuvem(`Sem internet · ${pendentesNuvem()} esperando`, "warn"); return; }
+  nuvemStatus.rodando=true;
+  const filaE=Object.keys(estado.fila.enderecos), filaH=Object.keys(estado.fila.historico);
+  const enderecos=filaE.filter(k=>estado.enderecos[k]).map(k=>{const e=estado.enderecos[k];
+    return {key:k,rua:e.rua,numero:e.numero,bairro:e.bairro,cep:e.cep,ref:e.ref,lat:e.lat,lng:e.lng,precisao:e.precisao,fonte:e.fonte,atualizado:e.atualizado||""};});
+  const historico=filaH.map(id=>{const [dia,pac]=id.split("|"); const r=estado.historico[dia]?.[pac]; if(!r) return null;
+    return {id,dia,pacote:pac,bairro:r.b,status:r.s,em:r.em,atualizado:r.atualizado||""};}).filter(Boolean);
+  try{
+    const resp=await fetch(nuvem.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({senha:nuvem.senha,acao:"salvar",enderecos,historico})});
+    const dados=await resp.json();
+    if(!dados.ok){ setNuvem(dados.erro==="senha"?"Senha errada. Confira a senha da planilha.":"A planilha recusou os dados.", "err"); nuvemStatus.rodando=false; return; }
+    filaE.forEach(k=>delete estado.fila.enderecos[k]); filaH.forEach(id=>delete estado.fila.historico[id]);
+    mesclar(dados);
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(estado)); }catch(e){}
+    const p=pendentesNuvem();
+    setNuvem(p?`${p} esperando`:`Em dia · ${new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}`, p?"warn":"ok");
+    nuvemStatus.rodando=false;
+    if(p) agendarSync();
+    if(!document.querySelector("#view input:focus, #view textarea:focus") && !gps.key) render();
+  }catch(e){
+    nuvemStatus.rodando=false;
+    setNuvem(`Não consegui falar com a planilha · ${pendentesNuvem()} esperando`, "warn");
+  }
+}
+
+function mesclar(dados){
+  (dados.enderecos||[]).forEach(r=>{
+    if(!r.key || estado.fila.enderecos[r.key]) return;
+    const local=estado.enderecos[r.key];
+    if(local && (local.atualizado||"") >= (r.atualizado||"")){
+      if(r.fonte==="voce" && local.fonte!=="voce" && r.lat) Object.assign(local,{lat:parseFloat(r.lat),lng:parseFloat(r.lng),precisao:r.precisao?parseFloat(r.precisao):null,fonte:"voce"});
+      return;
+    }
+    estado.enderecos[r.key]={rua:r.rua||"",numero:r.numero||"",bairro:r.bairro||"",cep:r.cep||"",ref:r.ref||"",
+      lat:r.lat!=null&&r.lat!==""?parseFloat(r.lat):null,lng:r.lng!=null&&r.lng!==""?parseFloat(r.lng):null,
+      precisao:r.precisao?parseFloat(r.precisao):null,fonte:r.fonte||null,atualizado:r.atualizado||""};
+  });
+  (dados.historico||[]).forEach(r=>{
+    if(!r.id || estado.fila.historico[r.id]) return;
+    const h=estado.historico[r.dia]||(estado.historico[r.dia]={}), local=h[r.pacote];
+    if(local && (local.atualizado||"") >= (r.atualizado||"")) return;
+    h[r.pacote]={b:r.bairro||"Sem bairro",s:r.status||"pendente",em:r.em||null,atualizado:r.atualizado||""};
+  });
+}
+
+function setNuvem(texto, tipo){
+  nuvemStatus.texto=texto; nuvemStatus.tipo=tipo;
+  const el=document.getElementById("nuvem-chip"); if(el){ el.textContent="Planilha: "+texto; el.className="chip "+chipNuvem(); }
+  const st=document.getElementById("nuvem-status"); if(st) st.textContent=texto;
+}
+const chipNuvem = () => ({ok:"c-ok",warn:"c-warn",err:"c-fail",off:"c-none"}[nuvemStatus.tipo]||"c-route");
+
+async function conectar(){
+  const url=document.getElementById("nuvem-url").value.trim(), senha=document.getElementById("nuvem-senha").value;
+  if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){ setNuvem("Esse link não é de um Apps Script. Ele começa com https://script.google.com/", "err"); return; }
+  if(!senha){ setNuvem("Digite a senha que você colocou no código da planilha.", "err"); return; }
+  nuvem={url,senha};
+  try{ localStorage.setItem(NUVEM_KEY, JSON.stringify(nuvem)); }catch(e){}
+  Object.keys(estado.enderecos).forEach(k=>sujar("enderecos",k));
+  Object.entries(estado.historico).forEach(([dia,h])=>Object.keys(h).forEach(p=>sujar("historico",dia+"|"+p)));
+  setNuvem("Enviando tudo para a planilha…", "");
+  render();
+  await sincronizar();
+  render();
+}
+function desconectar(){
+  nuvem=null; try{ localStorage.removeItem(NUVEM_KEY); }catch(e){}
+  setNuvem("Desligada","off"); render();
+}
+
+function parseEndereco(raw, cep){
+  let s = raw.replace(/[(),;]/g," ").replace(/\s+/g," ").trim();
+  s = s.replace(/\s+[A-Za-zÀ-ú]+\s*-\s*[A-Z]{2}\s+\d{5}-?\d{3}\s*$/,"").replace(/\s+\d{5}-?\d{3}\s*$/,"");
+  let w = s.split(" ");
+  for(let k=Math.floor(w.length/2); k>=2; k--){
+    if(w.slice(0,k).join(" ").toLowerCase() === w.slice(k,2*k).join(" ").toLowerCase()){ w = w.slice(k); break; }
+  }
+  let numIdx=-1, stop=-1;
+  for(let i=1;i<w.length;i++){
+    const t=w[i], prev=semAcento(w[i-1]).toLowerCase();
+    if(stop<0 && COMPL.has(semAcento(t).toLowerCase()) && i+1<w.length && /^\d/.test(w[i+1])) stop=i;
+    if(/^\d+[A-Za-z]?$/.test(t) && !COMPL.has(prev)){ numIdx=i; break; }
+  }
+  if(numIdx<0) numIdx=w.length;
+  if(stop<0||stop>numIdx) stop=numIdx;
+  let rua = titulo(w.slice(0,stop).join(" "));
+  const numero = (w[numIdx]||"").toUpperCase();
+  const compl = w.slice(stop,numIdx).join(" ");
+  let resto = w.slice(numIdx+1).join(" ");
+  let bairro = "";
+  const restoN = semAcento(resto).toLowerCase();
+  for(const b of BAIRROS){ if(restoN.endsWith(semAcento(b).toLowerCase())){ bairro=b; resto=resto.slice(0,resto.length-b.length).trim(); break; } }
+  if(!bairro){
+    const rw = resto.split(" ");
+    for(let i=rw.length-1;i>=0;i--){ if(PREFIX.includes(semAcento(rw[i]).toLowerCase())){ bairro=titulo(rw.slice(i).join(" ")); resto=rw.slice(0,i).join(" "); break; } }
+  }
+  let corrigido = false;
+  for(const c of CORRECOES){ if(c.de.test(rua)){ rua=c.rua; if(c.bairro) bairro=c.bairro; corrigido=true; } }
+  const ref = [compl, resto].filter(Boolean).join(" · ").trim();
+  return {rua, numero, bairro, cep:(cep||"").trim(), ref, corrigido};
+}
+
+function parseTexto(txt){
+  const itens=[]; let cur=null;
+  const novo = pacote => { cur={pacote:pacote||"",nome:"",endereco:"",cep:""}; itens.push(cur); };
+  for(const linhaBruta of txt.split(/\r?\n/)){
+    const linha = linhaBruta.replace(/[⁠​ ]/g," ").trim();
+    if(!linha) continue;
+    const m = linha.match(/^\d+\.\s*(\d{8,})/);
+    if(m){ novo(m[1]); continue; }
+    const kv = linha.match(/^(Nome|Endere[cç]o|CEP)\s*:\s*(.*)$/i);
+    if(!kv) continue;
+    const campo = semAcento(kv[1]).toLowerCase();
+    if(!cur || (campo==="nome" && cur.nome)) novo("");
+    if(campo==="nome") cur.nome=kv[2]; else if(campo==="endereco") cur.endereco=kv[2]; else cur.cep=kv[2];
+  }
+  return itens.filter(i=>i.endereco);
+}
+
+function linhasCSV(txt){
+  const sep = (txt.split("\n")[0].match(/;/g)||[]).length > (txt.split("\n")[0].match(/,/g)||[]).length ? ";" : ",";
+  const rows=[]; let row=[], cell="", q=false;
+  for(let i=0;i<txt.length;i++){
+    const c=txt[i];
+    if(q){ if(c==='"'){ if(txt[i+1]==='"'){cell+='"';i++;} else q=false; } else cell+=c; }
+    else if(c==='"') q=true;
+    else if(c===sep){ row.push(cell); cell=""; }
+    else if(c==="\n"||c==="\r"){ if(c==="\r"&&txt[i+1]==="\n") i++; row.push(cell); rows.push(row); row=[]; cell=""; }
+    else cell+=c;
+  }
+  if(cell||row.length){ row.push(cell); rows.push(row); }
+  return rows.filter(r=>r.some(x=>x.trim()));
+}
+
+function parseCSV(txt){
+  const rows=linhasCSV(txt); if(rows.length<2) return [];
+  const head=rows[0].map(h=>semAcento(h).toLowerCase().trim());
+  const col = (...nomes) => head.findIndex(h=>nomes.some(n=>h.includes(n)));
+  const iEnd=col("endereco","address"), iNome=col("nome","name","cliente"), iCep=col("cep","zip"), iPac=col("pacote","codigo","tracking","rastreio");
+  if(iEnd<0) return [];
+  return rows.slice(1).map(r=>({pacote:iPac>=0?r[iPac]:"", nome:iNome>=0?r[iNome]:"", endereco:r[iEnd]||"", cep:iCep>=0?r[iCep]:""})).filter(i=>i.endereco.trim());
+}
+
+function importar(txt){
+  const brutos = /^\s*[^\n]*(endere[cç]o|address)[^\n]*[,;]/i.test(txt) ? parseCSV(txt) : parseTexto(txt);
+  return brutos.map(i=>({...i, ...parseEndereco(i.endereco, i.cep)}));
+}
+
+const linkMaps = e => e.lat!=null
+  ? `https://www.google.com/maps/dir/?api=1&destination=${e.lat},${e.lng}`
+  : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([`${e.rua} ${e.numero||""}`.trim(), e.bairro, "Itapevi - SP"].filter(Boolean).join(", "))}`;
+const linkWaze = e => e.lat!=null
+  ? `https://waze.com/ul?ll=${e.lat},${e.lng}&navigate=yes`
+  : `https://waze.com/ul?q=${encodeURIComponent(`${e.rua} ${e.numero||""}, Itapevi`)}&navigate=yes`;
+
+function status(e){
+  if(!e || e.lat==null) return `<span class="chip c-none">Sem local</span>`;
+  if(e.fonte==="voce") return `<span class="chip c-ok">Local salvo por você${e.precisao?` · ±${Math.round(e.precisao)} m`:""}</span>`;
+  return `<span class="chip c-warn">Local do Google, pode errar</span>`;
+}
+
+let estado = carregar();
+let tab="hoje", busca="", previa=null, importMsg="", usarCoord=false, periodo="30", ocultarFeitos=false;
+let gps = {key:null, watch:null, melhor:null, erro:"", inicio:0, timer:null};
+
+function render(){
+  document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected", String(b.dataset.tab===tab)));
+  const v=document.getElementById("view");
+  v.innerHTML = tab==="hoje" ? viewHoje() : tab==="end" ? viewEnderecos() : tab==="hist" ? viewHistorico() : viewImportar();
+  const bs=document.getElementById("busca"); if(bs) bs.value=busca;
+}
+
+function painelGPS(key){
+  if(gps.key!==key) return "";
+  const m=gps.melhor, seg=Math.round((Date.now()-gps.inicio)/1000);
+  const boa = m && m.precisao<=PRECISAO_BOA;
+  let corpo;
+  if(gps.erro) corpo=`<p class="msg err">${esc(gps.erro)}</p>`;
+  else if(!m) corpo=`<p class="gps">Procurando GPS…</p><p class="sub">Fique parado na frente da casa.</p>`;
+  else corpo=`<p class="gps">±${Math.round(m.precisao)} m</p><p class="sub">${boa?"Precisão boa. Pode salvar.":"Esperando ficar mais preciso…"} (${seg}s)</p>`;
+  return `<div class="panel" id="painel-gps">
+    ${corpo}
+    <div class="toolbar">
+      <button class="btn primary" data-act="salvar-gps" data-key="${esc(key)}" ${m?"":"disabled"}>${boa||!m?"Salvar este local":"Salvar mesmo assim"}</button>
+      <button class="btn ghost" data-act="cancelar-gps">Cancelar</button>
+    </div>
+  </div>`;
+}
+
+function blocoEntrega(i, s){
+  if(s==="pendente") return `<div class="deliver">
+      <button class="btn ok" data-act="entregue" data-i="${i}">Entregue</button>
+      <button class="btn fail" data-act="falhou" data-i="${i}">Não entregue</button>
+    </div>`;
+  return `<div class="deliver"><button class="btn ghost" data-act="desfazer" data-i="${i}">Desfazer</button></div>`;
+}
+
+function cartao(key, e, numero, extraMeta, entrega){
+  const s = entrega ? entrega.s : null;
+  const chipEntrega = s==="entregue" ? `<span class="chip c-ok">Entregue</span>` : s==="falhou" ? `<span class="chip c-fail">Não entregue</span>` : "";
+  return `<article class="stop${s&&s!=="pendente"?" done":""}${s==="entregue"?" is-ok":""}${s==="falhou"?" is-fail":""}">
+    <div class="num${numero?"":" plain"}">${esc(numero || (e.numero||"·").slice(0,4))}</div>
+    <div>
+      <p class="addr">${esc(e.rua)}, ${esc(e.numero||"s/n")}</p>
+      <p class="meta">${esc([e.bairro, extraMeta].filter(Boolean).join(" · "))}</p>
+      ${e.ref?`<p class="ref">${esc(e.ref)}</p>`:""}
+      <div class="row">${chipEntrega}${status(e)}</div>
+    </div>
+    ${entrega ? blocoEntrega(entrega.i, s) : ""}
+    <div class="actions">
+      <a class="btn primary" href="${linkMaps(e)}" target="_blank" rel="noopener">Ir · Maps</a>
+      <a class="btn" href="${linkWaze(e)}" target="_blank" rel="noopener">Waze</a>
+      <button class="btn here" data-act="abrir-gps" data-key="${esc(key)}">Estou aqui</button>
+      <button class="btn" data-act="copiar-msg">Copiar mensagem</button>
+    </div>
+    ${painelGPS(key)}
+  </article>`;
+}
+
+function contagem(keys){
+  let voce=0,google=0,sem=0;
+  keys.forEach(k=>{const e=estado.enderecos[k]; if(!e||e.lat==null) sem++; else if(e.fonte==="voce") voce++; else google++;});
+  return `<span class="chip c-ok">${voce} salvos por você</span><span class="chip c-warn">${google} do Google</span><span class="chip c-none">${sem} sem local</span>`;
+}
+
+function viewHoje(){
+  const h=estado.hoje;
+  if(!h || !h.paradas?.length) return `<div class="card empty"><p>Nenhuma lista importada hoje.</p><button class="btn primary" data-go="imp">Importar a lista do dia</button></div>`;
+  const dataTxt = new Date(h.data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"});
+  const sts = h.paradas.map(statusDe);
+  const nOk = sts.filter(s=>s==="entregue").length, nFail = sts.filter(s=>s==="falhou").length, nPend = sts.length-nOk-nFail;
+  const itens = h.paradas.map((p,i)=>({p,i,e:estado.enderecos[p.key],s:sts[i]})).filter(({p,e})=>filtra(e,p));
+  if(ocultarFeitos) itens.splice(0, itens.length, ...itens.filter(x=>x.s==="pendente"));
+  return `<section class="list">
+    <div class="progress" aria-label="${nOk} de ${h.paradas.length} entregues">
+      <div class="progress-top"><strong>${nOk} de ${h.paradas.length} entregues</strong><span class="sub">${esc(dataTxt)}</span></div>
+      <div class="pbar"><i class="p-ok" style="width:${(nOk/h.paradas.length*100).toFixed(1)}%"></i><i class="p-fail" style="width:${(nFail/h.paradas.length*100).toFixed(1)}%"></i></div>
+      <div class="stats"><span class="chip c-ok">${nOk} entregue${nOk===1?"":"s"}</span><span class="chip c-fail">${nFail} não entregue${nFail===1?"":"s"}</span><span class="chip c-route">${nPend} faltam</span></div>
+    </div>
+    <div class="stats">${contagem(h.paradas.map(p=>p.key))}</div>
+    <input type="search" id="busca" placeholder="Buscar: 908, Pinheiros…" aria-label="Buscar endereço de hoje" autocomplete="off">
+    <label class="check"><input type="checkbox" id="ocultar" ${ocultarFeitos?"checked":""}> <span>Mostrar só os que faltam</span></label>
+    ${itens.map(({p,i,e,s})=>cartao(p.key, e||{rua:p.key}, String(i+1), p.nome, {i,s})).join("") || `<p class="empty">${ocultarFeitos&&!busca?"Tudo entregue por hoje.":"Nada com esse nome na lista de hoje."}</p>`}
+  </section>`;
+}
+
+function filtra(e,p){
+  const q=semAcento(busca).toLowerCase().trim(); if(!q) return true;
+  return semAcento([e?.rua,e?.numero,e?.bairro,e?.ref,p?.nome,p?.pacote].join(" ")).toLowerCase().includes(q);
+}
+
+function viewEnderecos(){
+  const todos=Object.entries(estado.enderecos).sort((a,b)=>a[1].rua.localeCompare(b[1].rua,"pt")||(parseInt(a[1].numero)||0)-(parseInt(b[1].numero)||0));
+  const lista=todos.filter(([,e])=>filtra(e));
+  return `<section class="list">
+    <div class="stats"><span class="chip c-route">${todos.length} endereços</span>${contagem(todos.map(([k])=>k))}</div>
+    <input type="search" id="busca" placeholder="Buscar rua, número ou bairro" aria-label="Buscar endereço" autocomplete="off">
+    ${lista.map(([k,e])=>cartao(k,e,"",e.cep)).join("") || `<p class="empty">${todos.length?"Nenhum endereço com esse nome.":"Os endereços aparecem aqui quando você importa a primeira lista."}</p>`}
+    <div class="card">
+      <strong>Planilha do Google</strong>
+      ${nuvem ? `
+        <p class="sub">Tudo o que você salva vai para a planilha quando tem internet. Sem sinal, fica esperando no celular e vai depois.</p>
+        <p class="msg"><span id="nuvem-status">${esc(nuvemStatus.texto)}</span></p>
+        <div class="toolbar">
+          <button class="btn primary" data-act="sync">Sincronizar agora</button>
+          <button class="btn ghost" data-act="desconectar">Desligar</button>
+        </div>` : `
+        <p class="sub">Ligue a planilha para não perder nada se trocar de celular. Cole o link do Apps Script e a senha que você colocou no código.</p>
+        <label class="sub" for="nuvem-url">Link do Apps Script</label>
+        <input type="url" id="nuvem-url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+        <label class="sub" for="nuvem-senha">Senha</label>
+        <input type="password" id="nuvem-senha" autocomplete="off">
+        <button class="btn primary" data-act="conectar">Ligar planilha</button>
+        <p class="msg err" id="nuvem-status">${nuvemStatus.tipo==="err"?esc(nuvemStatus.texto):""}</p>`}
+    </div>
+    <div class="card">
+      <strong>Backup</strong>
+      <p class="sub">Um arquivo com tudo, para guardar no WhatsApp ou no Drive. Útil se a planilha estiver desligada.</p>
+      <div class="toolbar">
+        <button class="btn" data-act="backup">Fazer backup</button>
+        <label class="btn" for="restaurar">Restaurar backup</label>
+      </div>
+      <input type="file" id="restaurar" accept=".json,application/json" hidden>
+    </div>
+  </section>`;
+}
+
+function viewImportar(){
+  return `<section class="card">
+    <label for="lista"><strong>Lista do seu app de print</strong></label>
+    <p class="sub">Cole o texto ou escolha o arquivo CSV. O app arruma os endereços, corrige os nomes de rua que o mapa não acha e junta com os locais que você já salvou.</p>
+    <div class="toolbar"><label class="btn" for="arquivo">Escolher arquivo</label></div>
+    <input type="file" id="arquivo" accept=".csv,.txt,text/csv,text/plain" hidden>
+    <textarea id="lista" placeholder="Ou cole aqui a lista…"></textarea>
+    <button class="btn" data-act="conferir">Conferir</button>
+    ${importMsg?`<p class="msg ${importMsg.startsWith("!")?"err":"good"}">${esc(importMsg.replace(/^!/,""))}</p>`:""}
+    ${previa?`
+      <label class="check"><input type="checkbox" id="coord" ${usarCoord?"checked":""}> <span>Mandar o ponto exato (coordenadas) no lugar do endereço, quando você já salvou o local. Só marque se o Circuit aceitar coordenadas.</span></label>
+      <div class="toolbar">
+        <button class="btn primary" data-act="baixar">Baixar CSV para o Circuit</button>
+        <button class="btn" data-act="usar">Usar como lista de hoje</button>
+      </div>
+      <div class="list">${previa.map((p,i)=>{const e=estado.enderecos[chave(p.rua,p.numero)];
+        return `<div class="stop"><div class="num">${i+1}</div><div>
+          <p class="addr">${esc(p.rua)}, ${esc(p.numero||"s/n")}</p>
+          <p class="meta">${esc([p.bairro,p.nome].filter(Boolean).join(" · "))}</p>
+          ${p.ref?`<p class="ref">${esc(p.ref)}</p>`:""}
+          <div class="row">${e?status(e):`<span class="chip c-route">Endereço novo</span>`}${p.corrigido?`<span class="chip c-warn">Nome da rua corrigido</span>`:""}</div>
+        </div></div>`;}).join("")}</div>`:""}
+  </section>`;
+}
+
+function viewHistorico(){
+  const dias=Object.keys(estado.historico||{}).sort().reverse();
+  if(!dias.length) return `<div class="card empty"><p>O histórico começa quando você importa a primeira lista.</p><button class="btn primary" data-go="imp">Importar a lista do dia</button></div>`;
+  const hoje=hojeISO(), d=new Date(hoje+"T12:00:00");
+  const menos = n => { const x=new Date(d); x.setDate(x.getDate()-n); return x.toISOString().slice(0,10); };
+  const inicioMes = hoje.slice(0,8)+"01";
+  const doDia = (k,s) => Object.values(estado.historico[k]).filter(x=>x.s===s);
+  const conta = desde => dias.filter(k=>k>=desde).reduce((n,k)=>n+doDia(k,"entregue").length,0);
+  const desde = periodo==="7" ? menos(6) : periodo==="30" ? menos(29) : "0000";
+  const noPeriodo = dias.filter(k=>k>=desde);
+  const porBairro={};
+  noPeriodo.forEach(k=>doDia(k,"entregue").forEach(x=>{ porBairro[x.b]=(porBairro[x.b]||0)+1; }));
+  const ranking=Object.entries(porBairro).sort((a,b)=>b[1]-a[1]);
+  const total=ranking.reduce((s,[,n])=>s+n,0), max=ranking[0]?.[1]||1;
+  const fmt = k => new Date(k+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"});
+  return `<section class="list">
+    <div class="tiles">
+      <div class="tile"><b>${conta(hoje)}</b><span>hoje</span></div>
+      <div class="tile"><b>${conta(menos(6))}</b><span>últimos 7 dias</span></div>
+      <div class="tile"><b>${conta(inicioMes)}</b><span>este mês</span></div>
+      <div class="tile"><b>${conta("0000")}</b><span>desde o começo</span></div>
+    </div>
+    <div class="card">
+      <strong>Entregas por região</strong>
+      <div class="seg" role="group" aria-label="Período">
+        <button data-periodo="7" aria-pressed="${periodo==="7"}">7 dias</button>
+        <button data-periodo="30" aria-pressed="${periodo==="30"}">30 dias</button>
+        <button data-periodo="tudo" aria-pressed="${periodo==="tudo"}">Tudo</button>
+      </div>
+      ${ranking.length ? ranking.map(([b,n])=>`<div class="bar-row">
+        <span class="nome">${esc(b)}</span><span class="qtd">${n} <span class="sub">· ${Math.round(n/total*100)}%</span></span>
+        <div class="bar"><i style="width:${(n/max*100).toFixed(1)}%"></i></div>
+      </div>`).join("") : `<p class="sub">Nenhuma entrega nesse período.</p>`}
+      <p class="sub">Conta só os pacotes que você marcou como Entregue.</p>
+    </div>
+    <div class="card">
+      <strong>Por dia</strong>
+      <div>${noPeriodo.map(k=>{const ok=doDia(k,"entregue").length, fail=doDia(k,"falhou").length, pend=doDia(k,"pendente").length;
+        return `<div class="dia"><span>${esc(fmt(k))}</span><span class="sub">${fail?`${fail} não entregue${fail>1?"s":""}`:""}${fail&&pend?" · ":""}${pend?`${pend} sem confirmar`:""}</span><span class="q">${ok} entregue${ok===1?"":"s"}</span></div>`;}).join("") || `<p class="sub">Nenhum dia nesse período.</p>`}</div>
+    </div>
+  </section>`;
+}
+
+function guardarPrevia(){
+  previa.forEach(p=>{
+    const k=chave(p.rua,p.numero), e=estado.enderecos[k];
+    if(!e){ estado.enderecos[k]={rua:p.rua,numero:p.numero,bairro:p.bairro,cep:p.cep,ref:p.ref,lat:null,lng:null,fonte:null,atualizado:""}; sujar("enderecos",k); }
+    else{
+      let mudou=false;
+      ["bairro","cep","ref"].forEach(f=>{ if(p[f] && e[f]!==p[f]){ e[f]=p[f]; mudou=true; } });
+      if(mudou){ e.atualizado=agora(); sujar("enderecos",k); }
+    }
+  });
+  estado.hoje={data:hojeISO(), paradas:previa.map(p=>({key:chave(p.rua,p.numero),pacote:p.pacote,nome:p.nome}))};
+  registrarDia(estado, hojeISO(), estado.hoje.paradas.map((p,i)=>({id:idParada(p), bairro:previa[i].bairro})));
+  gravar();
+}
+
+function baixar(nome, conteudo, tipo){
+  const blob=new Blob([conteudo],{type:tipo}), url=URL.createObjectURL(blob), a=document.createElement("a");
+  a.href=url; a.download=nome; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+
+function gerarCSV(){
+  const q=s=>`"${String(s??"").replace(/"/g,'""')}"`;
+  const linhas=[["Address","Notes"].join(",")];
+  previa.forEach(p=>{
+    const e=estado.enderecos[chave(p.rua,p.numero)]||{};
+    const endereco = usarCoord && e.fonte==="voce" && e.lat!=null
+      ? `${e.lat.toFixed(6)}, ${e.lng.toFixed(6)}`
+      : [`${p.rua}, ${p.numero||"s/n"}`, p.bairro, "Itapevi - SP", p.corrigido?"":p.cep].filter(Boolean).join(" - ");
+    linhas.push([q(endereco), q([p.pacote,p.nome,p.ref].filter(Boolean).join(" | "))].join(","));
+  });
+  return "﻿"+linhas.join("\r\n");
+}
+
+function abrirGPS(key){
+  pararGPS();
+  gps={key, watch:null, melhor:null, erro:"", inicio:Date.now(), timer:null};
+  if(!("geolocation" in navigator)) gps.erro="Este navegador não tem GPS. Abra o app no Chrome ou no Safari.";
+  else if(!window.isSecureContext) gps.erro="O GPS só funciona com o app aberto pelo link https.";
+  else{
+    gps.watch=navigator.geolocation.watchPosition(pos=>{
+      const p={lat:pos.coords.latitude,lng:pos.coords.longitude,precisao:pos.coords.accuracy};
+      if(!gps.melhor || p.precisao<=gps.melhor.precisao) gps.melhor=p;
+      atualizaPainel();
+    }, err=>{
+      gps.erro = err.code===1 ? "O celular não deixou usar a localização. Libere a localização para este site nas configurações do navegador."
+        : "Não consegui pegar o GPS. Confira se a localização do celular está ligada.";
+      atualizaPainel();
+    }, {enableHighAccuracy:true, maximumAge:0, timeout:30000});
+    gps.timer=setInterval(atualizaPainel,1000);
+  }
+  render();
+  document.getElementById("painel-gps")?.scrollIntoView({block:"center",behavior:"smooth"});
+}
+function atualizaPainel(){
+  const el=document.getElementById("painel-gps"); if(!el||!gps.key) return;
+  const tmp=document.createElement("div"); tmp.innerHTML=painelGPS(gps.key); el.replaceWith(tmp.firstElementChild);
+}
+function pararGPS(){
+  if(gps.watch!=null) navigator.geolocation.clearWatch(gps.watch);
+  clearInterval(gps.timer);
+  gps={key:null, watch:null, melhor:null, erro:"", inicio:0, timer:null};
+}
+function salvarGPS(key){
+  const m=gps.melhor; if(!m) return;
+  const e=estado.enderecos[key] || (estado.enderecos[key]={rua:key,numero:""});
+  Object.assign(e,{lat:m.lat,lng:m.lng,precisao:m.precisao,fonte:"voce",atualizado:agora()});
+  sujar("enderecos", key);
+  pararGPS();
+  if(gravar()) toast(`Local salvo: ${e.rua}, ${e.numero}`);
+  render();
+}
+
+async function copiar(texto){
+  try{ await navigator.clipboard.writeText(texto); toast("Mensagem copiada. Cole no chat do cliente."); }
+  catch(e){ const t=document.createElement("textarea"); t.value=texto; document.body.appendChild(t); t.select(); try{document.execCommand("copy"); toast("Mensagem copiada. Cole no chat do cliente.");}catch(_){toast("Não deu para copiar.");} t.remove(); }
+}
+
+function toast(t){ const el=document.getElementById("toast"); el.textContent=t; el.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>{el.hidden=true;},3500); }
+
+document.addEventListener("click", ev=>{
+  const b=ev.target.closest("button"); if(!b) return;
+  if(b.dataset.tab||b.dataset.go){ pararGPS(); tab=b.dataset.tab||b.dataset.go; busca=""; render(); return; }
+  if(b.dataset.periodo){ periodo=b.dataset.periodo; render(); return; }
+  const act=b.dataset.act;
+  if(act==="abrir-gps") abrirGPS(b.dataset.key);
+  else if(act==="cancelar-gps"){ pararGPS(); render(); }
+  else if(act==="salvar-gps") salvarGPS(b.dataset.key);
+  else if(act==="copiar-msg") copiar(MENSAGEM);
+  else if(act==="conectar") conectar();
+  else if(act==="desconectar") desconectar();
+  else if(act==="sync") sincronizar();
+  else if(act==="entregue") marcar(+b.dataset.i, "entregue");
+  else if(act==="falhou") marcar(+b.dataset.i, "falhou");
+  else if(act==="desfazer") marcar(+b.dataset.i, "pendente");
+  else if(act==="conferir"){ const txt=document.getElementById("lista").value; previa=importar(txt); importMsg=previa.length?`${previa.length} endereços lidos.`:"!Não achei nenhum endereço. Confira se a lista tem os endereços."; if(!previa.length) previa=null; render(); }
+  else if(act==="baixar"){ baixar(`circuit-${hojeISO()}.csv`, gerarCSV(), "text/csv;charset=utf-8"); guardarPrevia(); toast("CSV baixado. Importe no Circuit."); }
+  else if(act==="usar"){ guardarPrevia(); previa=null; importMsg=""; tab="hoje"; render(); }
+  else if(act==="backup"){ baixar(`minha-rota-backup-${hojeISO()}.json`, JSON.stringify(estado,null,1), "application/json"); }
+});
+document.addEventListener("input", ev=>{
+  const t=ev.target;
+  if(t.id==="busca"){ busca=t.value; const pos=t.selectionStart; render(); const nb=document.getElementById("busca"); nb.focus(); try{nb.setSelectionRange(pos,pos);}catch(e){} }
+  else if(t.id==="coord"){ usarCoord=t.checked; }
+  else if(t.id==="ocultar"){ ocultarFeitos=t.checked; render(); }
+});
+document.addEventListener("change", async ev=>{
+  const t=ev.target;
+  if(t.id==="arquivo" && t.files[0]){ const txt=await t.files[0].text(); document.getElementById("lista").value=txt; previa=importar(txt); importMsg=previa.length?`${previa.length} endereços lidos de ${t.files[0].name}.`:"!Não achei endereços nesse arquivo."; if(!previa.length) previa=null; render(); document.getElementById("lista").value=txt; }
+  if(t.id==="restaurar" && t.files[0]){
+    try{
+      const dados=JSON.parse(await t.files[0].text());
+      if(!dados.enderecos) throw 0;
+      Object.entries(dados.enderecos).forEach(([k,e])=>{ const atual=estado.enderecos[k]; if(!atual || (e.fonte==="voce" && atual.fonte!=="voce") || !atual.lat) estado.enderecos[k]=e; });
+      if(!estado.hoje?.paradas?.length && dados.hoje) estado.hoje=dados.hoje;
+      Object.entries(dados.historico||{}).forEach(([dia,pacotes])=>{ estado.historico[dia]={...(estado.historico[dia]||{}), ...pacotes}; });
+      normalizarHistorico(estado);
+      gravar(); toast("Backup restaurado."); render();
+    }catch(e){ toast("Esse arquivo não é um backup do Minha Rota."); }
+  }
+});
+
+render();
+setNuvem(nuvemStatus.texto, nuvemStatus.tipo);
+window.addEventListener("online", ()=>sincronizar());
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") sincronizar(); });
+sincronizar();
+</script>
+</body>
+</html>
