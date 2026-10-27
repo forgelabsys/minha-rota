@@ -135,7 +135,15 @@ const EXEMPLO = {enderecos:{}, hoje:null};
 
 const semAcento = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g,"");
 const slug = s => semAcento(s).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
-const chave = (rua,num) => slug(rua) + "_" + slug(num || "sn");
+const TIPOS = {r:"Rua", rua:"Rua", av:"Avenida", ave:"Avenida", avenida:"Avenida", est:"Estrada", estr:"Estrada", estrada:"Estrada", rod:"Rodovia", rodovia:"Rodovia",
+  al:"Alameda", alameda:"Alameda", tv:"Travessa", trav:"Travessa", travessa:"Travessa", pc:"Praça", pca:"Praça", praca:"Praça", vl:"Viela", viela:"Viela"};
+function expandirTipo(rua){
+  const m = rua.match(/^([A-Za-zÀ-ú]+)\.?\s+(.*)$/); if(!m) return rua;
+  const tipo = TIPOS[semAcento(m[1]).toLowerCase()];
+  return tipo ? `${tipo} ${m[2]}` : rua;
+}
+// A chave ignora "da/de/do/dos/das" para "Estrada Cruz Grande" e "Estrada da Cruz Grande" serem o mesmo endereço.
+const chave = (rua,num) => slug(expandirTipo(String(rua||"")).split(" ").filter(w=>!SMALL.has(w.toLowerCase())).join(" ")) + "_" + slug(num || "sn");
 const titulo = s => s.split(" ").map((w,i)=>{const l=w.toLowerCase(); if(i>0&&SMALL.has(l)) return l; return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();}).join(" ");
 const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const hojeISO = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
@@ -150,6 +158,14 @@ function carregar(){
   }
   normalizarHistorico(dados);
   if(!dados.fila) dados.fila={enderecos:{},historico:{}};
+  Object.keys(dados.enderecos).forEach(k=>{
+    const e=dados.enderecos[k]; if(!e.rua) return;
+    const nk=chave(e.rua,e.numero); if(nk===k) return;
+    const outro=dados.enderecos[nk];
+    if(!outro || (e.fonte==="voce" && outro.fonte!=="voce")) dados.enderecos[nk]=e;
+    delete dados.enderecos[k]; delete dados.fila.enderecos[k]; dados.fila.enderecos[nk]=true;
+    dados.hoje?.paradas?.forEach(p=>{ if(p.key===k) p.key=nk; });
+  });
   return dados;
 }
 const agora = () => new Date().toISOString();
@@ -222,13 +238,14 @@ async function sincronizar(){
 
 function mesclar(dados){
   (dados.enderecos||[]).forEach(r=>{
-    if(!r.key || estado.fila.enderecos[r.key]) return;
-    const local=estado.enderecos[r.key];
+    const key = r.rua ? chave(r.rua, r.numero) : r.key;
+    if(!key || estado.fila.enderecos[key]) return;
+    const local=estado.enderecos[key];
     if(local && (local.atualizado||"") >= (r.atualizado||"")){
       if(r.fonte==="voce" && local.fonte!=="voce" && r.lat) Object.assign(local,{lat:parseFloat(r.lat),lng:parseFloat(r.lng),precisao:r.precisao?parseFloat(r.precisao):null,fonte:"voce"});
       return;
     }
-    estado.enderecos[r.key]={rua:r.rua||"",numero:r.numero||"",bairro:r.bairro||"",cep:r.cep||"",ref:r.ref||"",
+    estado.enderecos[key]={rua:r.rua||"",numero:r.numero||"",bairro:r.bairro||"",cep:r.cep||"",ref:r.ref||"",
       lat:r.lat!=null&&r.lat!==""?parseFloat(r.lat):null,lng:r.lng!=null&&r.lng!==""?parseFloat(r.lng):null,
       precisao:r.precisao?parseFloat(r.precisao):null,fonte:r.fonte||null,atualizado:r.atualizado||""};
   });
@@ -285,7 +302,7 @@ function parseEndereco(raw, cep){
   }
   if(numIdx<0) numIdx=w.length;
   if(stop<0||stop>numIdx) stop=numIdx;
-  let rua = titulo(w.slice(0,stop).join(" "));
+  let rua = expandirTipo(titulo(w.slice(0,stop).join(" ")));
   const numero = (w[numIdx]||"").toUpperCase();
   const compl = w.slice(stop,numIdx).join(" ");
   let resto = w.slice(numIdx+1).join(" ");
@@ -362,7 +379,8 @@ function status(e){
 }
 
 let estado = carregar();
-let tab="hoje", busca="", previa=null, importMsg="", usarCoord=false, periodo="30", ocultarFeitos=false;
+let tab="hoje", busca="", previa=null, importMsg="", periodo="30", ocultarFeitos=false;
+let usarCoord = (()=>{ try{ return localStorage.getItem("minharota.coord")!=="0"; }catch(e){ return true; } })();
 let gps = {key:null, watch:null, melhor:null, erro:"", inicio:0, timer:null};
 
 function render(){
@@ -497,7 +515,9 @@ function viewImportar(){
     <button class="btn" data-act="conferir">Conferir</button>
     ${importMsg?`<p class="msg ${importMsg.startsWith("!")?"err":"good"}">${esc(importMsg.replace(/^!/,""))}</p>`:""}
     ${previa?`
-      <label class="check"><input type="checkbox" id="coord" ${usarCoord?"checked":""}> <span>Mandar o ponto exato (coordenadas) no lugar do endereço, quando você já salvou o local. Só marque se o Circuit aceitar coordenadas.</span></label>
+      ${(()=>{const v=previa.filter(p=>{const e=estado.enderecos[chave(p.rua,p.numero)]; return e&&e.fonte==="voce"&&e.lat!=null;}).length;
+        return `<div class="stats"><span class="chip c-ok">${v} de ${previa.length} já validados por você</span>${previa.length-v?`<span class="chip c-none">${previa.length-v} sem local seu</span>`:""}</div>`;})()}
+      <label class="check"><input type="checkbox" id="coord" ${usarCoord?"checked":""}> <span>Mandar o ponto exato para o Circuit nos endereços que você já validou com Estou aqui. O endereço escrito vai nas notas.</span></label>
       <div class="toolbar">
         <button class="btn primary" data-act="baixar">Baixar CSV para o Circuit</button>
         <button class="btn" data-act="usar">Usar como lista de hoje</button>
@@ -581,10 +601,12 @@ function gerarCSV(){
   const linhas=[["Address","Notes"].join(",")];
   previa.forEach(p=>{
     const e=estado.enderecos[chave(p.rua,p.numero)]||{};
-    const endereco = usarCoord && e.fonte==="voce" && e.lat!=null
+    const texto = `${e.rua||p.rua}, ${e.numero||p.numero||"s/n"}`;
+    const ponto = usarCoord && e.fonte==="voce" && e.lat!=null;
+    const endereco = ponto
       ? `${e.lat.toFixed(6)}, ${e.lng.toFixed(6)}`
-      : [`${p.rua}, ${p.numero||"s/n"}`, p.bairro, "Itapevi - SP", p.corrigido?"":p.cep].filter(Boolean).join(" - ");
-    linhas.push([q(endereco), q([p.pacote,p.nome,p.ref].filter(Boolean).join(" | "))].join(","));
+      : [texto, p.bairro, "Itapevi - SP", p.corrigido?"":p.cep].filter(Boolean).join(" - ");
+    linhas.push([q(endereco), q([ponto?texto:"", p.pacote, p.nome, p.ref].filter(Boolean).join(" | "))].join(","));
   });
   return "﻿"+linhas.join("\r\n");
 }
@@ -658,7 +680,7 @@ document.addEventListener("click", ev=>{
 document.addEventListener("input", ev=>{
   const t=ev.target;
   if(t.id==="busca"){ busca=t.value; const pos=t.selectionStart; render(); const nb=document.getElementById("busca"); nb.focus(); try{nb.setSelectionRange(pos,pos);}catch(e){} }
-  else if(t.id==="coord"){ usarCoord=t.checked; }
+  else if(t.id==="coord"){ usarCoord=t.checked; try{ localStorage.setItem("minharota.coord", usarCoord?"1":"0"); }catch(e){} }
   else if(t.id==="ocultar"){ ocultarFeitos=t.checked; render(); }
 });
 document.addEventListener("change", async ev=>{
