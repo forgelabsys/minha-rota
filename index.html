@@ -197,6 +197,7 @@ function carregar(){
   }
   normalizarHistorico(dados);
   if(!dados.fila) dados.fila={enderecos:{},historico:{}};
+  if(!dados.soltos) dados.soltos=[];
   Object.keys(dados.enderecos).forEach(k=>{
     const e=dados.enderecos[k]; if(!e.rua) return;
     const nk=chave(e.rua,e.numero); if(nk===k) return;
@@ -418,6 +419,7 @@ function status(e){
 }
 
 let estado = carregar();
+let previaLista=null;
 let tab="hoje", busca="", previa=null, importMsg="", periodo="30", ocultarFeitos=false;
 let usarCoord = (()=>{ try{ return localStorage.getItem("minharota.coord")!=="0"; }catch(e){ return true; } })();
 let gps = {key:null, watch:null, melhor:null, erro:"", inicio:0, timer:null};
@@ -676,6 +678,27 @@ function viewImportar(){
     <textarea id="lista" placeholder="Ou cole aqui a lista…"></textarea>
     <button class="btn" data-act="conferir">Conferir</button>
     ${importMsg?`<p class="msg ${importMsg.startsWith("!")?"err":"good"}">${esc(importMsg.replace(/^!/,""))}</p>`:""}
+  </section>
+  <section class="card">
+    <strong>Endereço solto</strong>
+    <p class="sub">Pacote que ficou fora da lista? Digite aqui. Ele entra junto com a lista no CSV e na lista de hoje.</p>
+    <label class="sub" for="solto-end">Endereço com número</label>
+    <input type="search" id="solto-end" placeholder="Estrada dos Pinheiros 422" autocomplete="off">
+    <div class="toolbar">
+      <div style="flex:1 1 140px"><label class="sub" for="solto-bairro">Bairro</label><input type="search" id="solto-bairro" placeholder="Chácaras Monte Serrat" autocomplete="off"></div>
+      <div style="flex:1 1 110px"><label class="sub" for="solto-cep">CEP</label><input type="search" id="solto-cep" inputmode="numeric" placeholder="06685-130" autocomplete="off"></div>
+    </div>
+    <div class="toolbar">
+      <div style="flex:1 1 140px"><label class="sub" for="solto-nome">Cliente</label><input type="search" id="solto-nome" autocomplete="off"></div>
+      <div style="flex:1 1 140px"><label class="sub" for="solto-pac">Código do pacote</label><input type="search" id="solto-pac" inputmode="numeric" autocomplete="off"></div>
+    </div>
+    <label class="sub" for="solto-ref">Referência</label>
+    <input type="search" id="solto-ref" placeholder="portão verde, depois do mercado" autocomplete="off">
+    <button class="btn" data-act="add-solto">Adicionar endereço solto</button>
+    <p class="msg err" id="solto-msg"></p>
+    ${estado.soltos.length?`<div class="list">${estado.soltos.map((s,i)=>`<div class="dia"><span>${esc(s.endereco)}${s.nome?` · <span class="sub">${esc(s.nome)}</span>`:""}</span><button class="btn ghost" style="width:auto;padding:4px 10px" data-act="del-solto" data-i="${i}" aria-label="Remover ${esc(s.endereco)}">Remover</button></div>`).join("")}</div>`:""}
+  </section>
+  <section class="card">
     ${previa?`
       ${(()=>{const v=previa.filter(p=>{const e=estado.enderecos[chave(p.rua,p.numero)]; return e&&e.fonte==="voce"&&e.lat!=null;}).length;
         return `<div class="stats"><span class="chip c-ok">${v} de ${previa.length} já validados por você</span>${previa.length-v?`<span class="chip c-none">${previa.length-v} sem local seu</span>`:""}</div>`;})()}
@@ -683,15 +706,38 @@ function viewImportar(){
       <div class="toolbar">
         <button class="btn primary" data-act="baixar">Baixar CSV para o Circuit</button>
         <button class="btn" data-act="usar">Usar como lista de hoje</button>
+        ${estado.hoje?.data===hojeISO() && estado.hoje.paradas?.length?`<button class="btn" data-act="juntar">Juntar com a lista de hoje</button>`:""}
       </div>
       <div class="list">${previa.map((p,i)=>{const e=estado.enderecos[chave(p.rua,p.numero)];
         return `<div class="stop"><div class="num">${i+1}</div><div>
           <p class="addr">${esc(p.rua)}, ${esc(p.numero||"s/n")}</p>
           <p class="meta">${esc([p.bairro,p.nome].filter(Boolean).join(" · "))}</p>
           ${p.ref?`<p class="ref">${esc(p.ref)}</p>`:""}
-          <div class="row">${e?status(e):`<span class="chip c-route">Endereço novo</span>`}${p.corrigido?`<span class="chip c-warn">Nome da rua corrigido</span>`:""}</div>
-        </div></div>`;}).join("")}</div>`:""}
+          <div class="row">${p.solto?`<span class="chip c-route">Solto</span>`:""}${e?status(e):`<span class="chip c-route">Endereço novo</span>`}${p.corrigido?`<span class="chip c-warn">Nome da rua corrigido</span>`:""}</div>
+        </div></div>`;}).join("")}</div>`:`<p class="sub">Confira uma lista ou adicione um endereço solto para gerar o CSV.</p>`}
   </section>`;
+}
+
+const parseSolto = s => {
+  const p={pacote:s.pacote||"", nome:s.nome||"", ...parseEndereco(s.endereco, s.cep||""), solto:true};
+  if(s.bairro) p.bairro=s.bairro;
+  if(s.ref) p.ref=[p.ref, s.ref].filter(Boolean).join(" · ");
+  return p;
+};
+function montarPrevia(){
+  const tudo=[...(previaLista||[]), ...estado.soltos.map(parseSolto)];
+  previa = tudo.length ? tudo : null;
+}
+function adicionarSolto(){
+  const val = id => document.getElementById(id).value.trim();
+  const msg=document.getElementById("solto-msg");
+  const endereco=val("solto-end");
+  if(!endereco){ msg.textContent="Digite o endereço com o número."; return; }
+  const cep=val("solto-cep").replace(/\D/g,"");
+  if(cep && cep.length!==8){ msg.textContent="O CEP tem 8 números. Confira ou deixe em branco."; return; }
+  estado.soltos.push({endereco, bairro:val("solto-bairro"), cep:cep?cep.slice(0,5)+"-"+cep.slice(5):"", nome:val("solto-nome"), pacote:val("solto-pac"), ref:val("solto-ref")});
+  gravar(); montarPrevia(); importMsg=""; render();
+  toast("Endereço solto adicionado.");
 }
 
 function viewHistorico(){
@@ -737,7 +783,7 @@ function viewHistorico(){
   </section>`;
 }
 
-function guardarPrevia(){
+function guardarPrevia(modo){
   previa.forEach(p=>{
     const k=chave(p.rua,p.numero), e=estado.enderecos[k];
     if(!e){ estado.enderecos[k]={rua:p.rua,numero:p.numero,bairro:p.bairro,cep:p.cep,ref:p.ref,lat:null,lng:null,fonte:null,atualizado:""}; sujar("enderecos",k); }
@@ -747,8 +793,15 @@ function guardarPrevia(){
       if(mudou){ e.atualizado=agora(); sujar("enderecos",k); }
     }
   });
-  estado.hoje={data:hojeISO(), paradas:previa.map(p=>({key:chave(p.rua,p.numero),pacote:p.pacote,nome:p.nome}))};
-  registrarDia(estado, hojeISO(), estado.hoje.paradas.map((p,i)=>({id:idParada(p), bairro:previa[i].bairro})));
+  const novas=previa.map(p=>({key:chave(p.rua,p.numero),pacote:p.pacote,nome:p.nome}));
+  if(modo==="juntar" && estado.hoje?.data===hojeISO()){
+    const ja=new Set(estado.hoje.paradas.map(idParada));
+    estado.hoje.paradas.push(...novas.filter(p=>!ja.has(idParada(p))));
+  } else {
+    estado.hoje={data:hojeISO(), paradas:novas};
+  }
+  registrarDia(estado, hojeISO(), novas.map((p,i)=>({id:idParada(p), bairro:previa[i].bairro})));
+  estado.soltos=[]; previaLista=null;
   gravar();
   completarBairros();
 }
@@ -839,8 +892,11 @@ document.addEventListener("click", ev=>{
   else if(act==="entregue") marcar(+b.dataset.i, "entregue");
   else if(act==="falhou") marcar(+b.dataset.i, "falhou");
   else if(act==="desfazer") marcar(+b.dataset.i, "pendente");
-  else if(act==="conferir"){ const txt=document.getElementById("lista").value; previa=importar(txt); importMsg=previa.length?`${previa.length} endereços lidos.`:"!Não achei nenhum endereço. Confira se a lista tem os endereços."; if(!previa.length) previa=null; render(); }
-  else if(act==="baixar"){ baixar(`circuit-${hojeISO()}.csv`, gerarCSV(), "text/csv;charset=utf-8"); guardarPrevia(); toast("CSV baixado. Importe no Circuit."); }
+  else if(act==="conferir"){ const txt=document.getElementById("lista").value; previaLista=importar(txt); importMsg=previaLista.length?`${previaLista.length} endereços lidos.`:"!Não achei nenhum endereço. Confira se a lista tem os endereços."; if(!previaLista.length) previaLista=null; montarPrevia(); render(); }
+  else if(act==="add-solto") adicionarSolto();
+  else if(act==="del-solto"){ estado.soltos.splice(+b.dataset.i,1); gravar(); montarPrevia(); render(); }
+  else if(act==="juntar"){ guardarPrevia("juntar"); previa=null; importMsg=""; tab="hoje"; render(); toast("Endereços juntados com a lista de hoje."); }
+  else if(act==="baixar"){ baixar(`circuit-${hojeISO()}.csv`, gerarCSV(), "text/csv;charset=utf-8"); guardarPrevia(estado.hoje?.data===hojeISO() && estado.hoje.paradas?.length ? "juntar" : ""); previa=null; render(); toast("CSV baixado. Importe no Circuit."); }
   else if(act==="usar"){ guardarPrevia(); previa=null; importMsg=""; tab="hoje"; render(); }
   else if(act==="backup"){ baixar(`minha-rota-backup-${hojeISO()}.json`, JSON.stringify(estado,null,1), "application/json"); }
 });
@@ -858,7 +914,7 @@ document.addEventListener("input", ev=>{
 });
 document.addEventListener("change", async ev=>{
   const t=ev.target;
-  if(t.id==="arquivo" && t.files[0]){ const txt=await t.files[0].text(); document.getElementById("lista").value=txt; previa=importar(txt); importMsg=previa.length?`${previa.length} endereços lidos de ${t.files[0].name}.`:"!Não achei endereços nesse arquivo."; if(!previa.length) previa=null; render(); document.getElementById("lista").value=txt; }
+  if(t.id==="arquivo" && t.files[0]){ const txt=await t.files[0].text(); document.getElementById("lista").value=txt; previaLista=importar(txt); importMsg=previaLista.length?`${previaLista.length} endereços lidos de ${t.files[0].name}.`:"!Não achei endereços nesse arquivo."; if(!previaLista.length) previaLista=null; montarPrevia(); render(); document.getElementById("lista").value=txt; }
   if(t.id==="restaurar" && t.files[0]){
     try{
       const dados=JSON.parse(await t.files[0].text());
@@ -872,6 +928,7 @@ document.addEventListener("change", async ev=>{
   }
 });
 
+if(estado.soltos.length) montarPrevia();
 render();
 setNuvem(nuvemStatus.texto, nuvemStatus.tipo);
 window.addEventListener("online", ()=>sincronizar());
