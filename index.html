@@ -467,7 +467,7 @@ async function completarBairros(){
 }
 
 // ---------- Mapa ----------
-let regiao="todas", mapaLeaflet=null, camadaPinos=null, carregandoLeaflet=null, enquadrarMapa=true;
+let regiao="todas", mapaLeaflet=null, camadaPinos=null, carregandoLeaflet=null, enquadrarMapa=true, buscaMapa="", marcadores={};
 function carregarLeaflet(){
   if(window.L) return Promise.resolve();
   if(carregandoLeaflet) return carregandoLeaflet;
@@ -492,9 +492,37 @@ function viewMapa(){
       <button data-regiao="todas" aria-pressed="${regiao==="todas"}">Todas<span>${todos.length}</span></button>
       ${regs.map(([b,n])=>`<button data-regiao="${esc(b)}" aria-pressed="${regiao===b}">${esc(b)}<span>${n}</span></button>`).join("")}
     </div>
+    <input type="search" id="busca-mapa" placeholder="Buscar endereço: Pinheiros 422, Lagoa…" aria-label="Buscar endereço no mapa" autocomplete="off" value="${esc(buscaMapa)}">
+    <div id="mapa-resultados">${resultadosMapa()}</div>
     ${!todos.length?`<p class="empty">Os pontos aparecem aqui quando você usa o Estou aqui.</p>`:""}
     <p class="msg" id="mapa-msg"></p>
   </section>`;
+}
+
+// Busca: todas as palavras digitadas precisam aparecer no endereço ("pinheiros 422", "lagoa 208").
+const palavrasBusca = () => semAcento(buscaMapa).toLowerCase().split(/\s+/).filter(Boolean);
+const bateBusca = e => { const p=palavrasBusca(); if(!p.length) return true;
+  const alvo=semAcento([e.rua,e.numero,e.bairro,e.ref,e.cep].join(" ")).toLowerCase(); return p.every(w=>alvo.includes(w)); };
+const pontosVisiveis = () => comLocal().filter(([,e])=>(regiao==="todas" || (e.bairro||"Sem bairro")===regiao) && bateBusca(e));
+function resultadosMapa(){
+  if(!palavrasBusca().length) return "";
+  const com=pontosVisiveis();
+  const sem=Object.entries(estado.enderecos).filter(([,e])=>e.lat==null && bateBusca(e)).slice(0,5);
+  if(!com.length && !sem.length){
+    const q=encodeURIComponent(`${buscaMapa}, Itapevi - SP`);
+    return `<p class="msg">Nenhum endereço salvo com esse nome. <a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Procurar no Google Maps</a></p>`;
+  }
+  return `<div class="list">
+    ${com.slice(0,6).map(([k,e])=>`<button class="btn" style="text-transform:none;text-align:left" data-foco="${esc(k)}">${esc(e.rua)}, ${esc(e.numero||"s/n")} <span class="chip ${e.fonte==="voce"?"c-ok":"c-warn"}">${e.fonte==="voce"?"salvo":"Google"}</span></button>`).join("")}
+    ${com.length>6?`<p class="sub">Mais ${com.length-6} no mapa.</p>`:""}
+    ${sem.map(([k,e])=>`<a class="btn" style="text-transform:none;text-align:left" href="${linkMaps(e)}" target="_blank" rel="noopener">${esc(e.rua)}, ${esc(e.numero||"s/n")} <span class="chip c-none">sem local · abrir no Maps</span></a>`).join("")}
+  </div>`;
+}
+function focarPonto(key){
+  const m=marcadores[key]; if(!m||!mapaLeaflet) return;
+  mapaLeaflet.setView(m.getLatLng(), 18);
+  m.openPopup();
+  document.getElementById("mapa-wrap").scrollIntoView({block:"center",behavior:"smooth"});
 }
 async function abrirMapa(){
   try{ await carregarLeaflet(); }catch(e){ const m=document.getElementById("mapa-msg"); if(m) m.textContent="Sem internet para carregar o mapa agora. Os pontos continuam salvos."; return; }
@@ -511,12 +539,12 @@ async function abrirMapa(){
 }
 function desenharPinos(enquadrar){
   if(!mapaLeaflet) return;
-  camadaPinos.clearLayers();
-  const pts=comLocal().filter(([,e])=>regiao==="todas" || (e.bairro||"Sem bairro")===regiao);
+  camadaPinos.clearLayers(); marcadores={};
+  const pts=pontosVisiveis();
   pts.forEach(([k,e])=>{
     const pos=[e.lat,e.lng], meu=e.fonte==="voce";
     if(meu && e.precisao) L.circle(pos,{radius:e.precisao,color:"#6BCB93",weight:1,fillOpacity:.15,interactive:false}).addTo(camadaPinos);
-    L.marker(pos,{icon:L.divIcon({className:"",html:`<div class="mp-pino${meu?"":" google"}"></div>`,iconSize:[22,22],iconAnchor:[11,11]})})
+    marcadores[k]=L.marker(pos,{icon:L.divIcon({className:"",html:`<div class="mp-pino${meu?"":" google"}"></div>`,iconSize:[22,22],iconAnchor:[11,11]})})
       .bindPopup(`<b>${esc(e.rua)}, ${esc(e.numero||"s/n")}</b><br>${esc(e.bairro||"")}${e.ref?`<br>${esc(e.ref)}`:""}<br><small>${meu?`Salvo por você · ±${Math.round(e.precisao||0)} m`:"Local do Google, pode errar"}</small>
         <div class="pop-acoes"><a href="${linkMaps(e)}" target="_blank" rel="noopener">Maps</a><a href="${linkWaze(e)}" target="_blank" rel="noopener">Waze</a></div>`)
       .addTo(camadaPinos);
@@ -798,6 +826,7 @@ document.addEventListener("click", ev=>{
   const b=ev.target.closest("button"); if(!b) return;
   if(b.dataset.tab||b.dataset.go){ pararGPS(); tab=b.dataset.tab||b.dataset.go; busca=""; enquadrarMapa=true; render(); return; }
   if(b.dataset.regiao){ regiao=b.dataset.regiao; enquadrarMapa=true; render(); return; }
+  if(b.dataset.foco){ focarPonto(b.dataset.foco); return; }
   if(b.dataset.periodo){ periodo=b.dataset.periodo; render(); return; }
   const act=b.dataset.act;
   if(act==="abrir-gps") abrirGPS(b.dataset.key);
@@ -820,6 +849,12 @@ document.addEventListener("input", ev=>{
   if(t.id==="busca"){ busca=t.value; const pos=t.selectionStart; render(); const nb=document.getElementById("busca"); nb.focus(); try{nb.setSelectionRange(pos,pos);}catch(e){} }
   else if(t.id==="coord"){ usarCoord=t.checked; try{ localStorage.setItem("minharota.coord", usarCoord?"1":"0"); }catch(e){} }
   else if(t.id==="ocultar"){ ocultarFeitos=t.checked; render(); }
+  else if(t.id==="busca-mapa"){
+    buscaMapa=t.value;
+    document.getElementById("mapa-resultados").innerHTML=resultadosMapa();
+    desenharPinos(true);
+    const vis=pontosVisiveis(); if(vis.length===1 && palavrasBusca().length) focarPonto(vis[0][0]);
+  }
 });
 document.addEventListener("change", async ev=>{
   const t=ev.target;
