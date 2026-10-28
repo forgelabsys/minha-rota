@@ -1,6 +1,6 @@
 // Guarda o app no celular para abrir sem internet.
 // Troque a versão a cada publicação para o celular baixar a nova.
-const CACHE = "minharota-v1";
+const CACHE = "minharota-v2";
 const ARQUIVOS = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/maskable-512.png", "./icons/apple-touch-icon.png"];
 
 self.addEventListener("install", ev => {
@@ -18,7 +18,8 @@ self.addEventListener("fetch", ev => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   const proprio = url.origin === location.origin;
-  const fonte = url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com";
+  // Fontes e a biblioteca do mapa ficam guardadas para abrir sem internet.
+  const fonte = url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com" || url.hostname === "unpkg.com";
   if (!proprio && !fonte) return;
 
   // Página: tenta a internet primeiro (pega a versão nova), sem sinal usa a guardada.

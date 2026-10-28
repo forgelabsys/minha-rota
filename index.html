@@ -67,6 +67,21 @@ h1{font-family:var(--font-label);font-weight:600;font-size:26px;margin:0;letter-
 .bar i{display:block;height:100%;background:var(--route);border-radius:5px}
 .dia{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:15px}
 .dia .q{font-weight:600;font-variant-numeric:tabular-nums}
+.tabs{grid-template-columns:repeat(5,minmax(0,1fr))}
+.tabs button{font-size:13px;letter-spacing:.01em;padding:10px 0}
+#mapa-wrap{border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+#mapa{height:min(62vh,560px);background:var(--card)}
+.regioes{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.regioes::-webkit-scrollbar{display:none}
+.regioes button{flex:none;font:600 14px var(--font-label);letter-spacing:.02em;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.regioes button[aria-pressed="true"]{background:var(--route);border-color:var(--route);color:var(--route-ink)}
+.regioes button span{opacity:.75;margin-left:4px;font-variant-numeric:tabular-nums}
+.mp-pino{width:22px;height:22px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);background:#1E7A46}
+.mp-pino.google{background:#B9821A}
+.leaflet-popup-content{font:15px/1.4 var(--font-body)}
+.leaflet-popup-content .pop-acoes{display:flex;gap:6px;margin-top:8px}
+.leaflet-popup-content .pop-acoes a{flex:1;text-align:center;text-decoration:none;font:600 13px var(--font-label);text-transform:uppercase;padding:8px 6px;border-radius:8px;background:#1F5AA6;color:#fff}
+.leaflet-popup-content .pop-acoes a+a{background:#e9ecef;color:#1C2126}
 .c-fail{background:var(--fail-soft);color:var(--danger)}
 .deliver{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .deliver .ghost{grid-column:1/-1}
@@ -133,9 +148,11 @@ textarea{min-height:160px;resize:vertical}
     <button id="t-hoje" role="tab" aria-selected="true" data-tab="hoje">Hoje</button>
     <button id="t-end" role="tab" aria-selected="false" data-tab="end">Endereços</button>
     <button id="t-imp" role="tab" aria-selected="false" data-tab="imp">Importar</button>
+    <button id="t-mapa" role="tab" aria-selected="false" data-tab="mapa">Mapa</button>
     <button id="t-hist" role="tab" aria-selected="false" data-tab="hist">Histórico</button>
   </nav>
   <main id="view"></main>
+  <div id="mapa-wrap" hidden><div id="mapa"></div></div>
 </div>
 <div id="toast" class="toast" role="status" hidden></div>
 
@@ -408,8 +425,103 @@ let gps = {key:null, watch:null, melhor:null, erro:"", inicio:0, timer:null};
 function render(){
   document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected", String(b.dataset.tab===tab)));
   const v=document.getElementById("view");
-  v.innerHTML = tab==="hoje" ? viewHoje() : tab==="end" ? viewEnderecos() : tab==="hist" ? viewHistorico() : viewImportar();
+  v.innerHTML = tab==="hoje" ? viewHoje() : tab==="end" ? viewEnderecos() : tab==="hist" ? viewHistorico() : tab==="mapa" ? viewMapa() : viewImportar();
   const bs=document.getElementById("busca"); if(bs) bs.value=busca;
+  document.getElementById("mapa-wrap").hidden = tab!=="mapa";
+  if(tab==="mapa") abrirMapa();
+}
+
+// ---------- Bairro pelo CEP (ViaCEP) ----------
+const CEP_KEY="minharota.ceps";
+let cacheCep = (()=>{ try{ return JSON.parse(localStorage.getItem(CEP_KEY))||{}; }catch(e){ return {}; } })();
+let buscandoCeps=false;
+async function completarBairros(){
+  if(buscandoCeps || !navigator.onLine) return;
+  buscandoCeps=true;
+  let mudou=false;
+  try{
+    const faltando=[...new Set(Object.values(estado.enderecos).filter(e=>!e.bairro && /^\d{5}-?\d{3}$/.test(e.cep||"")).map(e=>e.cep.replace("-","")))];
+    for(const cep of faltando){
+      if(!(cep in cacheCep)){
+        try{
+          const d=await (await fetch(`https://viacep.com.br/ws/${cep}/json/`)).json();
+          cacheCep[cep] = d && !d.erro && d.bairro ? d.bairro : "";
+        }catch(e){ break; }
+        await new Promise(r=>setTimeout(r,250));
+      }
+    }
+    try{ localStorage.setItem(CEP_KEY, JSON.stringify(cacheCep)); }catch(e){}
+    Object.entries(estado.enderecos).forEach(([k,e])=>{
+      const b = !e.bairro && e.cep ? cacheCep[e.cep.replace("-","")] : "";
+      if(b){ e.bairro=b; e.atualizado=agora(); sujar("enderecos",k); mudou=true; }
+    });
+    // o histórico guardava "Sem bairro"; corrige pelo endereço de cada pacote
+    const porPacote={}; (estado.hoje?.paradas||[]).forEach(p=>{ if(p.pacote) porPacote[p.pacote]=p.key; });
+    Object.entries(estado.historico).forEach(([dia,h])=>Object.entries(h).forEach(([id,r])=>{
+      if(r.b && r.b!=="Sem bairro") return;
+      const b=estado.enderecos[estado.enderecos[id]?id:porPacote[id]]?.bairro;
+      if(b){ r.b=b; r.atualizado=agora(); sujar("historico", dia+"|"+id); mudou=true; }
+    }));
+  }finally{ buscandoCeps=false; }
+  if(mudou){ gravar(); if(!document.querySelector("#view input:focus, #view textarea:focus") && !gps.key) render(); }
+}
+
+// ---------- Mapa ----------
+let regiao="todas", mapaLeaflet=null, camadaPinos=null, carregandoLeaflet=null, enquadrarMapa=true;
+function carregarLeaflet(){
+  if(window.L) return Promise.resolve();
+  if(carregandoLeaflet) return carregandoLeaflet;
+  carregandoLeaflet=new Promise((ok,falha)=>{
+    const css=document.createElement("link"); css.rel="stylesheet"; css.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"; document.head.appendChild(css);
+    const js=document.createElement("script"); js.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"; js.onload=ok; js.onerror=()=>{ carregandoLeaflet=null; falha(); }; document.head.appendChild(js);
+  });
+  return carregandoLeaflet;
+}
+const comLocal = () => Object.entries(estado.enderecos).filter(([,e])=>e.lat!=null && e.lng!=null);
+function regioesComContagem(){
+  const c={}; comLocal().forEach(([,e])=>{ const b=e.bairro||"Sem bairro"; c[b]=(c[b]||0)+1; });
+  return Object.entries(c).sort((a,b)=>b[1]-a[1]);
+}
+function viewMapa(){
+  const todos=comLocal(), regs=regioesComContagem();
+  if(regiao!=="todas" && !regs.some(([b])=>b===regiao)) regiao="todas";
+  const voce=todos.filter(([,e])=>e.fonte==="voce").length;
+  return `<section class="list">
+    <div class="stats"><span class="chip c-ok">${voce} salvos por você</span>${todos.length-voce?`<span class="chip c-warn">${todos.length-voce} do Google</span>`:""}</div>
+    <div class="regioes" role="group" aria-label="Região">
+      <button data-regiao="todas" aria-pressed="${regiao==="todas"}">Todas<span>${todos.length}</span></button>
+      ${regs.map(([b,n])=>`<button data-regiao="${esc(b)}" aria-pressed="${regiao===b}">${esc(b)}<span>${n}</span></button>`).join("")}
+    </div>
+    ${!todos.length?`<p class="empty">Os pontos aparecem aqui quando você usa o Estou aqui.</p>`:""}
+    <p class="msg" id="mapa-msg"></p>
+  </section>`;
+}
+async function abrirMapa(){
+  try{ await carregarLeaflet(); }catch(e){ const m=document.getElementById("mapa-msg"); if(m) m.textContent="Sem internet para carregar o mapa agora. Os pontos continuam salvos."; return; }
+  if(!mapaLeaflet){
+    const sat=L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:20,maxNativeZoom:19,attribution:"Imagens © Esri"});
+    const nomes=L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",{maxZoom:20,maxNativeZoom:19});
+    const ruas=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:20,maxNativeZoom:19,attribution:"© OpenStreetMap"});
+    mapaLeaflet=L.map("mapa",{layers:[sat,nomes],zoomControl:true}).setView([-23.548,-47.0],13);
+    L.control.layers({"Satélite":sat,"Ruas":ruas},{"Nomes":nomes}).addTo(mapaLeaflet);
+    camadaPinos=L.layerGroup().addTo(mapaLeaflet);
+  }
+  const enq=enquadrarMapa; enquadrarMapa=false;
+  setTimeout(()=>{ mapaLeaflet.invalidateSize(); desenharPinos(enq); }, 50);
+}
+function desenharPinos(enquadrar){
+  if(!mapaLeaflet) return;
+  camadaPinos.clearLayers();
+  const pts=comLocal().filter(([,e])=>regiao==="todas" || (e.bairro||"Sem bairro")===regiao);
+  pts.forEach(([k,e])=>{
+    const pos=[e.lat,e.lng], meu=e.fonte==="voce";
+    if(meu && e.precisao) L.circle(pos,{radius:e.precisao,color:"#6BCB93",weight:1,fillOpacity:.15,interactive:false}).addTo(camadaPinos);
+    L.marker(pos,{icon:L.divIcon({className:"",html:`<div class="mp-pino${meu?"":" google"}"></div>`,iconSize:[22,22],iconAnchor:[11,11]})})
+      .bindPopup(`<b>${esc(e.rua)}, ${esc(e.numero||"s/n")}</b><br>${esc(e.bairro||"")}${e.ref?`<br>${esc(e.ref)}`:""}<br><small>${meu?`Salvo por você · ±${Math.round(e.precisao||0)} m`:"Local do Google, pode errar"}</small>
+        <div class="pop-acoes"><a href="${linkMaps(e)}" target="_blank" rel="noopener">Maps</a><a href="${linkWaze(e)}" target="_blank" rel="noopener">Waze</a></div>`)
+      .addTo(camadaPinos);
+  });
+  if(enquadrar && pts.length) mapaLeaflet.fitBounds(pts.map(([,e])=>[e.lat,e.lng]),{padding:[30,30],maxZoom:17});
 }
 
 function painelGPS(key){
@@ -610,6 +722,7 @@ function guardarPrevia(){
   estado.hoje={data:hojeISO(), paradas:previa.map(p=>({key:chave(p.rua,p.numero),pacote:p.pacote,nome:p.nome}))};
   registrarDia(estado, hojeISO(), estado.hoje.paradas.map((p,i)=>({id:idParada(p), bairro:previa[i].bairro})));
   gravar();
+  completarBairros();
 }
 
 function baixar(nome, conteudo, tipo){
@@ -683,7 +796,8 @@ function toast(t){ const el=document.getElementById("toast"); el.textContent=t; 
 
 document.addEventListener("click", ev=>{
   const b=ev.target.closest("button"); if(!b) return;
-  if(b.dataset.tab||b.dataset.go){ pararGPS(); tab=b.dataset.tab||b.dataset.go; busca=""; render(); return; }
+  if(b.dataset.tab||b.dataset.go){ pararGPS(); tab=b.dataset.tab||b.dataset.go; busca=""; enquadrarMapa=true; render(); return; }
+  if(b.dataset.regiao){ regiao=b.dataset.regiao; enquadrarMapa=true; render(); return; }
   if(b.dataset.periodo){ periodo=b.dataset.periodo; render(); return; }
   const act=b.dataset.act;
   if(act==="abrir-gps") abrirGPS(b.dataset.key);
@@ -727,7 +841,7 @@ render();
 setNuvem(nuvemStatus.texto, nuvemStatus.tipo);
 window.addEventListener("online", ()=>sincronizar());
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") sincronizar(); });
-sincronizar();
+sincronizar().finally(()=>completarBairros());
 
 function aplicarTema(t){
   if(t==="light"||t==="dark") document.documentElement.dataset.theme=t; else delete document.documentElement.dataset.theme;
