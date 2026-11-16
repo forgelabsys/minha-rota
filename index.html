@@ -633,11 +633,24 @@ function filtra(e,p){
   return semAcento([e?.rua,e?.numero,e?.bairro,e?.ref,p?.nome,p?.pacote].join(" ")).toLowerCase().includes(q);
 }
 
+function semLocalApagaveis(){
+  const hoje=new Set((estado.hoje?.data===hojeISO() ? estado.hoje.paradas||[] : []).map(p=>p.key));
+  return Object.entries(estado.enderecos).filter(([k,e])=>(e.lat==null||e.fonte!=="voce") && !hoje.has(k)).map(([k])=>k);
+}
+
+function limparSemLocal(){
+  const ks=semLocalApagaveis(); if(!ks.length) return;
+  if(!confirm(`Apagar ${ks.length} endereços que não foram salvos com "Estou aqui"? Os da lista de hoje ficam.`)) return;
+  ks.forEach(k=>{ delete estado.enderecos[k]; delete estado.fila.enderecos[k]; });
+  gravar(); render(); toast(`${ks.length} endereços apagados deste celular.`);
+}
+
 function viewEnderecos(){
   const todos=Object.entries(estado.enderecos).sort((a,b)=>a[1].rua.localeCompare(b[1].rua,"pt")||(parseInt(a[1].numero)||0)-(parseInt(b[1].numero)||0));
   const lista=todos.filter(([,e])=>filtra(e));
   return `<section class="list">
     <div class="stats"><span class="chip c-route">${todos.length} endereços</span>${contagem(todos.map(([k])=>k))}</div>
+    ${(()=>{const n=semLocalApagaveis().length; return n?`<button class="btn ghost" data-act="limpar-sem-local">Apagar ${n} sem local</button>`:"";})()}
     <input type="search" id="busca" placeholder="Buscar rua, número ou bairro" aria-label="Buscar endereço" autocomplete="off">
     ${lista.map(([k,e])=>cartao(k,e,"",e.cep)).join("") || `<p class="empty">${todos.length?"Nenhum endereço com esse nome.":"Os endereços aparecem aqui quando você importa a primeira lista."}</p>`}
     <div class="card">
@@ -887,6 +900,7 @@ document.addEventListener("click", ev=>{
   else if(act==="salvar-gps") salvarGPS(b.dataset.key);
   else if(act==="copiar-msg") copiar(MENSAGEM);
   else if(act==="conectar") conectar();
+  else if(act==="limpar-sem-local") limparSemLocal();
   else if(act==="desconectar") desconectar();
   else if(act==="sync") sincronizar();
   else if(act==="entregue") marcar(+b.dataset.i, "entregue");
